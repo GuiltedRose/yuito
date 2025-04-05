@@ -30,6 +30,9 @@
 build/
 .vscode/
 
+# Stuff that shouldn't go in main
+flake.nix
+
 # Executables
 *.exe
 *.out
