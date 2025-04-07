@@ -28,6 +28,7 @@
 
 # Folders
 build/
+*/dev-tools/
 .vscode/
 
 # Stuff that shouldn't go in main
