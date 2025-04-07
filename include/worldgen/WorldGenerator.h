@@ -4,18 +4,18 @@
 #include <unordered_map>
 #include <vector>
 #include <random>
-#include <set>
 
 struct Vec2i {
     int x;
     int y;
+
     bool operator==(const Vec2i& other) const {
         return x == other.x && y == other.y;
     }
 
     struct Hash {
         std::size_t operator()(const Vec2i& v) const {
-            return std::hash<int>()(v.x) ^ std::hash<int>()(v.y << 1);
+            return std::hash<int>()(v.x) ^ (std::hash<int>()(v.y) << 1);
         }
     };
 };
@@ -29,15 +29,15 @@ struct Location {
     std::vector<std::string> connections;
 };
 
-class WorldGeneratior {
+class WorldGenerator {
 public:
-    WorldGeneratior(unsigned int seed);
+    WorldGenerator(unsigned int seed);
 
     std::vector<Location> generateRegion(const Vec2i& regionCoords);
     void linkAdjacentRegions(const Vec2i& regionCoords);
 
-    // Full Map
     const std::unordered_map<Vec2i, std::vector<Location>, Vec2i::Hash>& getWorld() const;
+
 private:
     std::mt19937 rng;
     std::unordered_map<Vec2i, std::vector<Location>, Vec2i::Hash> regionMap;

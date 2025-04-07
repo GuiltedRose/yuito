@@ -95,8 +95,8 @@ Reactions vary:
 > This system is not a derivative of the Nemesis System and does not utilize its patented structure.
 
 ## License & Use
-The **Living Legacy Engine** is released into the public domain.  
-It may be used, modified, extended, or remixed by any developer or studio, for any purpose, without restriction or credit required.
+The **Living Legacy Engine** is released under BSD 3-Clause.  
+It may be used, modified, extended, or remixed by any developer or studio, for any purpose, without restriction, but credit is required.
 
 > **Game mechanics are not inventions — they are building blocks for everyone. Innovation must remain open.**
 
