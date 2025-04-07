@@ -5,6 +5,8 @@
 #include <vector>
 #include <random>
 
+struct Tile;
+
 struct Vec2i {
     int x;
     int y;
@@ -27,6 +29,8 @@ struct Location {
     std::string terrainType;
     std::vector<std::string> tags;
     std::vector<std::string> connections;
+
+    Tile* visual = nullptr; // pointer to renderer data
 };
 
 class WorldGenerator {

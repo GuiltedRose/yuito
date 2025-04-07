@@ -47,5 +47,5 @@ private:
     std::chrono::system_clock::time_point birthTime;
     std::chrono::system_clock::time_point deathTime;
 
-    EchoTouchLog personalEchoLog;
+    std::unique_ptr<EchoTouchLog> personalEchoLog;
 };

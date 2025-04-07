@@ -18,10 +18,10 @@ namespace living_legacy::rumor {
     class RumorSystem {
     public:
         void addRumor(const Rumor& rumor);
-        void clearRumorsForFaction(std::string& factionId);
+        void clearRumorsForFaction(const std::string& factionId);
 
         const std::vector<Rumor>& getRumorsForFaction(const std::string& factionId) const;
-        const std::vector<Rumor>& getAllRumors();
+        const std::vector<Rumor>& getAllRumors() const;
     private:
         std::unordered_map<std::string, std::vector<Rumor>> factionRumors_;
         std::vector<Rumor> globalRumors_;

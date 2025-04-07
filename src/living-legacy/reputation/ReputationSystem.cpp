@@ -15,14 +15,14 @@ namespace living_legacy::reputation {
 
     int ReputationSystem::getRepuation(const FactionID& factionId) const {
         auto it = reputationMap_.find(factionId);
-        return(it != reputationMap_.end()) it->second.score : 0;
+        return(it != reputationMap_.end()) ? it->second.score : 0;
     }
 
     void ReputationSystem::applyRumorImpact(const FactionID& factionId, int impact) {
         modifyReputation(factionId, impact);
     }
 
-    const std::unordered_map<FactionID, Reputation>& getAllReputations() const {
+    const std::unordered_map<FactionID, Reputation>& ReputationSystem::getAllReputations() const {
         return reputationMap_;
     }
 }

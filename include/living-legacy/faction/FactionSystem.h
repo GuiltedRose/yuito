@@ -10,21 +10,29 @@ namespace living_legacy::faction {
     using FactionID = std::string;
 
     enum class FactionStanding {
-        Enemy = -100,
-        Hostile = -50,
-        Neutral = 0,
-        Friendly = 50,
-        Ally = 100
+        Neutral,
+        Ally,
+        Enemy
     };
 
     struct Faction {
+        // Constructors
+        Faction() : id("unknown"), name("Unnamed Faction"), isOutlaw(false), isAtWar(false) {}
+        Faction(const FactionID& fid, const std::string& fname)
+            : id(fid), name(fname), isOutlaw(false), isAtWar(false) {}
+
+        // Core data
         FactionID id;
         std::string name;
+
+        // Faction state
+        bool isOutlaw;
+        bool isAtWar;
+
+        // Relationships with other factions
         std::unordered_map<FactionID, FactionStanding> relationships;
-        bool isOutlaw = false;
-        bool isAtWar = false;
-        Faction(const FactionID& fid, const std::string& fname) : id(fid), name(fname) {}
     };
+    
 
     class FactionSystem {
     public:

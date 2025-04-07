@@ -1,5 +1,5 @@
+#include "worldgen/GLWidget.h"
 #include "worldgen/ChunkManager.h"
-#include "worldgen/GLWidget"
 
 ChunkManager::ChunkManager(WorldGenerator& gen, unsigned int seed)
     : generator(gen), seed(seed) {}
@@ -58,7 +58,7 @@ std::vector<Tile> ChunkManager::collectRenderTiles() const {
     for (const auto& [regionCoords, chunk] : activeChunks) {
         const auto& locs = chunk.locations;
         for (size_t i = 0; i < locs.size(); ++i) {
-            result.push_back(fromLocation(locs[i], regionCoords, static_cast<int>(i)));
+            result.push_back(GLWidget::fromLocation(locs[i], regionCoords, static_cast<int>(i)));
         }
     }
 

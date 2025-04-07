@@ -1,6 +1,8 @@
 #pragma once
 
-#include <QOpenWidget>
+#include "worldgen/WorldGenerator.h"
+#include "worldgen/ChunkManager.h"
+#include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include <QTimer>
 #include <QKeyEvent>
@@ -18,6 +20,10 @@ class GLWidget : public QOpenGLWidget, protected QOpenGLFunctions {
 public:
     GLWidget(QWidget* parent = nullptr);
 
+    static Tile fromLocation(const Location& loc, const Vec2i& regionCoords, int index);
+    void setChunkManager(ChunkManager* manager) { chunkManager = manager; }
+
+
 protected:
     void initializeGL() override;
     void paintGL() override;
@@ -34,4 +40,6 @@ private:
     float camAngleY = 45.0f;
     float camDist = 20.0f;
     QPoint lastMousePos;
+
+    ChunkManager* chunkManager = nullptr;
 };

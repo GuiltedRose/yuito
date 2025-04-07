@@ -3,13 +3,25 @@
 #include <QTimer>
 #include <QMatrix4x4>
 #include <QOpenGLFunctions>
-#include <GL/glu.h>
 
 GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent) {
     setFocusPolicy(Qt::StrongFocus);
     timer.setInterval(16);
     connect(&timer, &QTimer::timeout, this, QOverload<>::of(&GLWidget::update));
     timer.start();
+}
+
+Tile GLWidget::fromLocation(const Location& loc, const Vec2i& regionCoords, int index) {
+    if (!loc.visual) {
+        return Tile {
+            float(regionCoords.x * 16 + index % 4),
+            0.5f,
+            float(regionCoords.y * 16 + index / 4),
+            0.4f, 0.6f, 0.2f
+        };
+    }
+
+    return *(loc.visual); // pull rendering info directly
 }
 
 void GLWidget::initializeGL() {
@@ -38,31 +50,33 @@ void GLWidget::resizeGL(int w, int h) {
 void GLWidget::paintGL() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(60.0, width() / float(height()), 0.1, 100.0);
+    QMatrix4x4 projection;
+    projection.perspective(60.0f, float(width()) / float(height()), 0.1f, 100.0f);
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    // Simple orbit camera
+    QMatrix4x4 view;
     float radX = camAngleX * M_PI / 180.0f;
     float radY = camAngleY * M_PI / 180.0f;
     float eyeX = camDist * sin(radX) * cos(radY);
     float eyeY = camDist * sin(radY);
     float eyeZ = camDist * cos(radX) * cos(radY);
 
-    gluLookAt(eyeX, eyeY, eyeZ, 5, 0, 5, 0, 1, 0);
+    view.lookAt(QVector3D(eyeX, eyeY, eyeZ),
+                QVector3D(5.0f, 0.0f, 5.0f),
+                QVector3D(0.0f, 1.0f, 0.0f));
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(projection.constData());
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixf(view.constData());
 
     for (const auto& tile : tiles) {
         glPushMatrix();
         glTranslatef(tile.x, 0.0f, tile.y);
-
         glColor3f(tile.r, tile.g, tile.b);
 
         float h = tile.height;
         glBegin(GL_QUADS);
-        // Top face
         glVertex3f(0, h, 0);
         glVertex3f(1, h, 0);
         glVertex3f(1, h, 1);
@@ -72,6 +86,7 @@ void GLWidget::paintGL() {
         glPopMatrix();
     }
 }
+
 
 void GLWidget::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_W) camDist -= 1.0f;

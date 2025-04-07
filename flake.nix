@@ -14,20 +14,20 @@
           config.allowUnfree = true;
         };
 
-        qtPackages = pkgs.qt6;
+        qt = pkgs.qt6;
+        llvm = pkgs.llvmPackages_16;
 
         buildInputs = with pkgs; [
           cmake
           ninja
-          gcc13               # For C++23
           python3
-          qtPackages.qtbase
-          qtPackages.qttools
-          qtPackages.qtmultimedia
-          qtPackages.qtdeclarative
-          qtPackages.qtquickcontrols2
-          qtPackages.qtwayland
-          libGL               # OpenGL
+          llvm.clang
+          llvm.lld
+
+          qt.qtbase
+          qt.qttools
+          qt.qtwayland
+
           xorg.libX11
           xorg.libXext
           xorg.libXrender
@@ -37,16 +37,16 @@
         ];
 
       in {
-        devShells.default = pkgs.mkShell {
-          name = "qt-opengl-dev-shell";
+        devShells.default = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
+          name = "yuito-dev";
 
           packages = buildInputs;
 
           shellHook = ''
-            export CXX=g++
-            export CC=gcc
-            export QT_QPA_PLATFORM=wayland;x11
-            echo "Dev shell for Qt6 + OpenGL + Python3 + C++23 ready!"
+            export CC=clang
+            export CXX=clang++
+            export QT_QPA_PLATFORM=xcb
+            echo "Welcome to the Yuito dev shell (Qt6 + OpenGL + Clang)"
           '';
         };
       });

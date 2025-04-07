@@ -1,6 +1,6 @@
 #include "living-legacy/rumor/RumorSystem.h"
 
-using namespace living_legacy::rumor {
+namespace living_legacy::rumor {
     void RumorSystem::addRumor(const Rumor& rumor) {
         globalRumors_.push_back(rumor);
         factionRumors_[rumor.targetFaction].push_back(rumor);

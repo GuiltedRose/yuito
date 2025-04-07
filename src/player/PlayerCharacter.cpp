@@ -59,10 +59,11 @@ void PlayerCharacter::recordRelicTouch(const std::string& itemID, const std::str
     // You can replace this with a proper time library if needed
     touch.timestamp = "TODO:timestamp"; 
 
-    personalEchoLog.logTouch(itemID, touch);
+    personalEchoLog->logTouch(itemID, touch);
+
 }
 
 bool PlayerCharacter::hasTouchedItem(const std::string& itemID) const {
-    return personalEchoLog.wasTouchedBy(itemID, id);
+    return personalEchoLog->wasTouchedBy(itemID, id);
 }
 

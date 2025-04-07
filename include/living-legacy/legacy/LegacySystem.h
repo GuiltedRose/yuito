@@ -4,7 +4,7 @@
 #include <vector>
 #include <optional>
 
-using namespace living_legacy::legacy {
+namespace living_legacy::legacy {
     struct LegacyEntry {
         std::string characterName;
         std::string summary;
@@ -24,6 +24,8 @@ using namespace living_legacy::legacy {
         void assignHeir(const std::string& heirName);
 
         const std::string& getCurrentCharacterName() const;
+
+        const std::vector<LegacyEntry>& getLegacyLog() const;
         std::vector<std::string> generateLegacyRecap() const;
         
         int getCurrentGeneration() const;
