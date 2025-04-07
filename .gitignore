@@ -33,6 +33,7 @@ build/
 
 # Stuff that shouldn't go in main
 flake.nix
+flake.lock
 
 # Executables
 *.exe
