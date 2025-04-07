@@ -31,6 +31,8 @@ namespace living_legacy::legacy {
         int getCurrentGeneration() const;
         bool hasHeir() const;
         bool isGameOver() const;
+
+        void updateLegacy();        
     private:
         std::string currentCharacter_;
         std::optional<Heir> pendingHeir_;

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include<living-legacy/faction/FactionSystem.h"
 
 namespace living_legacy::rumor {
     struct Rumor {
@@ -22,6 +23,8 @@ namespace living_legacy::rumor {
 
         const std::vector<Rumor>& getRumorsForFaction(const std::string& factionId) const;
         const std::vector<Rumor>& getAllRumors() const;
+
+        void spreadRumors(const FactionSystem& factions);
     private:
         std::unordered_map<std::string, std::vector<Rumor>> factionRumors_;
         std::vector<Rumor> globalRumors_;

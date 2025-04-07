@@ -1,6 +1,5 @@
 #pragma once
 
-#include "living-legacy/faction/FactionSystem.h"
 #include "living-legacy/reputation/ReputationSystem.h"
 #include "living-legacy/rumor/RumorSystem.h"
 #include "living-legacy/legacy/LegacySystem.h"

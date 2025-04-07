@@ -20,6 +20,9 @@ namespace living_legacy::reputation {
         void applyRumorImpact(const FactionID& factionId, int impact);
         const std::unordered_map<FactionID, Reputation>& getAllReputations() const;
 
+        void decayReputation();
+        
+
     private:
         std::unordered_map<FactionID, Reputation> reputationMap_;
     };

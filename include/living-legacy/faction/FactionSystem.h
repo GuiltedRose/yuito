@@ -50,6 +50,8 @@ namespace living_legacy::faction {
         FactionStanding getRelationship(const FactionID& a, const FactionID& b) const;
 
         const std::unordered_map<FactionID, Faction>& getAllFactions() const;
+
+        void evaluatePromotions();   
     private:
         std::unordered_map<FactionID, Faction> factions_;
     };
