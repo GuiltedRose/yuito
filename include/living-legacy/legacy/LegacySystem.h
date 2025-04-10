@@ -9,6 +9,9 @@ namespace living_legacy::legacy {
         std::string characterName;
         std::string summary;
         int generation = 0;
+        std::string id;
+        int age = 0;
+        std::string status;
     };
 
     struct Heir {
@@ -31,6 +34,8 @@ namespace living_legacy::legacy {
         int getCurrentGeneration() const;
         bool hasHeir() const;
         bool isGameOver() const;
+
+        void updateLegacy();        
     private:
         std::string currentCharacter_;
         std::optional<Heir> pendingHeir_;

@@ -3,15 +3,11 @@
 namespace living_legacy::world {
 
     void WorldState::update() {
-        // Placeholder logic for future time progression, faction updates, etc.
-        // For example:
-        // - spread rumors
-        // - promote faction members
-        // - decay old reputation
-        // - simulate passive world events
-
-        // This will likely call into rumors(), factions(), etc. in the future.
-    }
+        rumorSystem_.spreadRumors(factionSystem_);
+        factionSystem_.evaluatePromotions();
+        reputationSystem_.decayReputation();
+        legacySystem_.updateLegacy();
+    }    
 
     living_legacy::faction::FactionSystem& WorldState::factions() {
         return factionSystem_;

@@ -16,31 +16,57 @@ std::string WorldGenerator::pickRandom(const std::vector<std::string>& list) {
     return list[dist(rng)];
 }
 
+float WorldGenerator::hybridNoise(float x, float y) {
+    float perlin = perlinNoise(x * 0.1f, y * 0.1f);     // smooth terrain shape
+    float worley = worleyNoise(x * 0.05f, y * 0.05f);   // region clustering
+    
+    // Worley gives distance; invert it to get height
+    float worleyHeight = 1.0f - worley;
+
+    // Blend them
+    float blend = 0.6f * perlin + 0.4f * worleyHeight;
+    return blend;
+}
+
+
 std::vector<Location> WorldGenerator::generateRegion(const Vec2i& regionCoords) {
-    const int locationsPerRegion = 5;
-
+    const int chunkSize = 16;
     std::vector<Location> locations;
-    for (int i = 0; i < locationsPerRegion; ++i) {
-        std::string id = makeLocationID(regionCoords, i);
-        std::string terrain = pickRandom(terrainTypes);
-        std::string tag = pickRandom(tags);
-        std::string name = tag + " " + terrain;
-        std::string description = pickRandom(loreHooks);
 
-        locations.push_back(Location{
-            id, name, description, terrain, { tag }, {}
-        });
-    }
+    for (int y = 0; y < chunkSize; ++y) {
+        for (int x = 0; x < chunkSize; ++x) {
+            int index = y * chunkSize + x;
+            std::string id = makeLocationID(regionCoords, index);
+            std::string terrain = pickRandom(terrainTypes);
+            std::string tag = pickRandom(tags);
+            std::string name = tag + " " + terrain;
+            std::string description = pickRandom(loreHooks);
 
-    // Connect locations in sequence
-    for (int i = 1; i < locationsPerRegion; ++i) {
-        locations[i - 1].connections.push_back(locations[i].id);
-        locations[i].connections.push_back(locations[i - 1].id);
+            // 👇 Use global world coordinates for seamless noise
+            float globalX = regionCoords.x * chunkSize + x;
+            float globalY = regionCoords.y * chunkSize + y;
+            float h = hybridNoise(globalX, globalY);
+
+            auto visual = std::make_shared<VisualData>();
+            visual->x = x;
+            visual->y = y;
+            visual->height = 0.4f + h * 0.6f; // scale height
+
+            visual->r = 0.2f + h * 0.6f;
+            visual->g = 0.4f + h * 0.5f;
+            visual->b = 0.2f + h * 0.4f;
+
+            locations.push_back(Location{
+                id, name, description, terrain, { tag }, {}, visual
+            });
+        }
     }
 
     regionMap[regionCoords] = locations;
     return locations;
 }
+
+
 
 void WorldGenerator::linkAdjacentRegions(const Vec2i& regionCoords) {
     static const std::vector<Vec2i> offsets = {

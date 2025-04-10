@@ -96,4 +96,15 @@ namespace living_legacy::faction {
     const std::unordered_map<FactionID, Faction>& FactionSystem::getAllFactions() const {
         return factions_;
     }
+
+    void FactionSystem::evaluatePromotions() {
+        for (auto& [id, faction] : factions_) {
+            for (NPC& member : faction.members) {
+                if (member.loyalty > 70 && member.rank < faction.maxRank) {
+                    member.rank++;
+                    faction.history.push_back(member.name + " was promoted to rank " + std::to_string(member.rank));
+                }
+            }
+        }
+    }    
 }

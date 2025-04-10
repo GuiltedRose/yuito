@@ -25,4 +25,17 @@ namespace living_legacy::reputation {
     const std::unordered_map<FactionID, Reputation>& ReputationSystem::getAllReputations() const {
         return reputationMap_;
     }
+
+    void ReputationSystem::decayReputation() {
+        for (auto& [factionId, rep] : reputationMap_) {
+            if (rep.lastInteraction++ > 5) {
+                rep.score -= 1;
+                rep.lastInteraction = 0; // reset decay timer
+            }
+    
+            // Clamp or cleanup
+            if (rep.score < -100) rep.score = -100;
+            if (rep.score > 100) rep.score = 100;
+        }
+    }       
 }

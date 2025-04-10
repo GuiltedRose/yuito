@@ -1,50 +1,90 @@
 #include "worldgen/GLWidget.h"
+#include "worldgen/World.h"
 #include <cmath>
-#include <QTimer>
 #include <QMatrix4x4>
-#include <QOpenGLFunctions>
+#include <QTimer>
+#include <QOpenGLShaderProgram>
+#include <QMouseEvent>
+#include <QKeyEvent>
 
 GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent) {
+    camDist = 20.0f; // ← try something like this for a top-down view
+    camAngleX = 45.0f;
+    camAngleY = 45.0f;
+    
     setFocusPolicy(Qt::StrongFocus);
     timer.setInterval(16);
     connect(&timer, &QTimer::timeout, this, QOverload<>::of(&GLWidget::update));
     timer.start();
 }
 
+void GLWidget::setWorld(World* w) {
+    world = w;
+}
+
+void GLWidget::setRenderSystem(RenderSystem* rs) {
+    renderSystem = rs;
+}
+
+void GLWidget::setChunkManager(ChunkManager* cm) {
+    chunkManager = cm;
+}
+
 Tile GLWidget::fromLocation(const Location& loc, const Vec2i& regionCoords, int index) {
+    const float tileSize = 1.0f;
+    const int regionSize = 16;
+
     if (!loc.visual) {
-        return Tile {
-            float(regionCoords.x * 16 + index % 4),
-            0.5f,
-            float(regionCoords.y * 16 + index / 4),
-            0.4f, 0.6f, 0.2f
-        };
+        float x = regionCoords.x * regionSize + (index % regionSize);
+        float y = regionCoords.y * regionSize + (index / regionSize);
+        return Tile{ x * tileSize, 0.5f, y * tileSize, 0.4f, 0.6f, 0.2f };
     }
 
-    return *(loc.visual); // pull rendering info directly
+    float worldX = (regionCoords.x * regionSize + loc.visual->x) * tileSize;
+    float worldY = (regionCoords.y * regionSize + loc.visual->y) * tileSize;
+
+    return Tile{
+        worldX,
+        loc.visual->height,
+        worldY,
+        loc.visual->r,
+        loc.visual->g,
+        loc.visual->b
+    };
 }
+
 
 void GLWidget::initializeGL() {
     initializeOpenGLFunctions();
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
-    tiles = chunkManager->collectRenderTiles();
 
-    // Stub terrain grid
-    for (int y = 0; y < 10; ++y) {
-        for (int x = 0; x < 10; ++x) {
-            tiles.push_back(Tile {
-                float(x), float(y),
-                0.2f + (x % 3) * 0.3f,
-                0.2f + (y % 4) * 0.2f,
-                0.5f
-            });
-        }
+    if (renderSystem) {
+        renderSystem->initGL();         // << set up context-bound GL functions
+        renderSystem->initialize();     // << set up VAOs, shaders, etc
     }
+
+    if (chunkManager)
+        tiles = chunkManager->collectRenderTiles();
 }
+
 
 void GLWidget::resizeGL(int w, int h) {
     glViewport(0, 0, w, h);
+}
+
+void GLWidget::drawTiles(QOpenGLShaderProgram* shader) {
+    for (const auto& tile : tiles) {
+        QMatrix4x4 model;
+        model.translate(QVector3D(tile.x, tile.height, tile.y));
+        model.scale(0.98f, 1.0f, 0.98f); 
+
+        shader->setUniformValue("uModel", model);
+        shader->setUniformValue("uColor", tile.r, tile.g, tile.b);
+
+        if (renderSystem)
+            renderSystem->drawPrimitive(PrimitiveShape::RoundedCube);
+    }
 }
 
 void GLWidget::paintGL() {
@@ -53,46 +93,57 @@ void GLWidget::paintGL() {
     QMatrix4x4 projection;
     projection.perspective(60.0f, float(width()) / float(height()), 0.1f, 100.0f);
 
+    // Default to some center if world is missing
+    QVector3D center(8.0f, 0.0f, 8.0f);
+
+    if (world) {
+        const Vec2i& pos = world->getPlayerPosition();
+        center = QVector3D(pos.x, 0.0f, pos.y);
+    }
+
+    QVector3D eye = center + QVector3D(0.0f, camDist, camDist); // Above and back
+    QVector3D up(0.0f, 1.0f, 0.0f);
+
     QMatrix4x4 view;
-    float radX = camAngleX * M_PI / 180.0f;
-    float radY = camAngleY * M_PI / 180.0f;
-    float eyeX = camDist * sin(radX) * cos(radY);
-    float eyeY = camDist * sin(radY);
-    float eyeZ = camDist * cos(radX) * cos(radY);
+    view.lookAt(eye, center, up);
 
-    view.lookAt(QVector3D(eyeX, eyeY, eyeZ),
-                QVector3D(5.0f, 0.0f, 5.0f),
-                QVector3D(0.0f, 1.0f, 0.0f));
+    if (world) {
+        world->prepareRender();  // populate tiles
+        tiles = world->getRenderTiles();
+    }
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(projection.constData());
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(view.constData());
-
-    for (const auto& tile : tiles) {
-        glPushMatrix();
-        glTranslatef(tile.x, 0.0f, tile.y);
-        glColor3f(tile.r, tile.g, tile.b);
-
-        float h = tile.height;
-        glBegin(GL_QUADS);
-        glVertex3f(0, h, 0);
-        glVertex3f(1, h, 0);
-        glVertex3f(1, h, 1);
-        glVertex3f(0, h, 1);
-        glEnd();
-
-        glPopMatrix();
+    if (renderSystem) {
+        QOpenGLShaderProgram* shader = renderSystem->getShader("husk");
+        if (shader) {
+            shader->bind();
+            shader->setUniformValue("uView", view);
+            shader->setUniformValue("uProjection", projection);
+            drawTiles(shader);
+            shader->release();
+        }
     }
 }
 
 
 void GLWidget::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_W) camDist -= 1.0f;
-    if (event->key() == Qt::Key_S) camDist += 1.0f;
-    update();
+    if (!world) return;
+
+    Vec2i pos = world->getPlayerPosition();
+
+    switch (event->key()) {
+        case Qt::Key_W: pos.y -= 1; break;
+        case Qt::Key_S: pos.y += 1; break;
+        case Qt::Key_A: pos.x -= 1; break;
+        case Qt::Key_D: pos.x += 1; break;
+    }
+
+    world->setPlayerPosition(pos);
+    world->update();        // <== Important!
+    update();               // Trigger paintGL()
 }
+
+
+
 
 void GLWidget::mouseMoveEvent(QMouseEvent* event) {
     QPoint delta = event->pos() - lastMousePos;

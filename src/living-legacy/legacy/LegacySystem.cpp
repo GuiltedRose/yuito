@@ -65,4 +65,17 @@ namespace living_legacy::legacy {
         return recap;
     }
 
+    void LegacySystem::updateLegacy() {
+        for (LegacyEntry& entry : legacyLog_) {
+            entry.age++;
+    
+            if (entry.age > 50) {
+                entry.status = "Forgotten";
+            } else if (entry.age > 30) {
+                entry.status = "Legendary";
+            } else if (entry.age > 10) {
+                entry.status = "Respected";
+            }
+        }
+    }    
 }

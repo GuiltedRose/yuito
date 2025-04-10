@@ -7,8 +7,9 @@
 
 #include "player/PlayerCharacter.h"
 #include "player/EchoTouchLog.h"
+#include "player/Serializable.h"
 
-class PlayerEntity {
+class PlayerEntity : public Serializable {
 public:
     PlayerEntity(const std::string& id);
 
@@ -28,9 +29,13 @@ public:
     // Echo relic tracking
     EchoTouchLog& getEchoLog();
 
+    QJsonObject toJson() const override;
+    void fromJson(const QJsonObject& json) override;
+
 private:
     std::string id; // Unique meta-player ID
     std::vector<std::shared_ptr<PlayerCharacter>> generations;
     std::unordered_map<std::string, bool> visitedWorlds;
     EchoTouchLog echoLog;
+    QJsonObject j;
 };

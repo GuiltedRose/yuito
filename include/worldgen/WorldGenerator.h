@@ -4,8 +4,15 @@
 #include <unordered_map>
 #include <vector>
 #include <random>
+#include <memory>
+#include "worldgen/Noise.h"
 
 struct Tile;
+
+struct VisualData {
+    float x, y, height;
+    float r, g, b;
+};
 
 struct Vec2i {
     int x;
@@ -30,12 +37,13 @@ struct Location {
     std::vector<std::string> tags;
     std::vector<std::string> connections;
 
-    Tile* visual = nullptr; // pointer to renderer data
+    std::shared_ptr<VisualData> visual;
 };
 
 class WorldGenerator {
 public:
     WorldGenerator(unsigned int seed);
+    float hybridNoise(float x, float y);
 
     std::vector<Location> generateRegion(const Vec2i& regionCoords);
     void linkAdjacentRegions(const Vec2i& regionCoords);
@@ -64,4 +72,7 @@ private:
 
     std::string makeLocationID(const Vec2i& region, int index);
     std::string pickRandom(const std::vector<std::string>& list);
+
+    float perlin;
+    float worley;
 };
