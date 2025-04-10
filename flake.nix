@@ -19,6 +19,7 @@
 
         buildInputs = with pkgs; [
           cmake
+          gdb
           ninja
           python3
           llvm.clang

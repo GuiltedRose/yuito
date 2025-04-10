@@ -1,4 +1,5 @@
 #include "living-legacy/rumor/RumorSystem.h"
+#include <algorithm>
 
 namespace living_legacy::rumor {
     void RumorSystem::addRumor(const Rumor& rumor) {
@@ -20,7 +21,7 @@ namespace living_legacy::rumor {
         return globalRumors_;
     }
 
-    void RumorSystem::spreadRumors() {
+    void RumorSystem::spreadRumors(const faction::FactionSystem& factions) {
         std::vector<Rumor> newRumors;
     
         for (auto& [factionId, rumorsList] : rumorMap_) {

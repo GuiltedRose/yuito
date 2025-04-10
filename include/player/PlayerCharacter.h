@@ -1,5 +1,6 @@
 #pragma once
 
+#include "player/Serializable.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -8,7 +9,7 @@
 
 class EchoTouchLog;
 
-class PlayerCharacter {
+class PlayerCharacter : public Serializable {
 public:
     PlayerCharacter(const std::string& id, const std::string& worldID, int generationNumber);
 
@@ -33,6 +34,10 @@ public:
     //Echo Touch Log
     void recordRelicTouch(const std::string& itemID, const std::string& emotionalTag);
     bool hasTouchedItem(const std::string& itemID) const;
+
+    // Serialized data for saving
+    QJsonObject toJson() const override;
+    void fromJson(const QJsonObject& json) override;
 
 
 private:

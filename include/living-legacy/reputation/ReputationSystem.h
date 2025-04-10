@@ -9,6 +9,7 @@ namespace living_legacy::reputation {
     struct Reputation {
         int score = 0;
         bool isKnown = false;
+        int lastInteraction = 0;
     };
 
     class ReputationSystem {

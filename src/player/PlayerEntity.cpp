@@ -1,4 +1,5 @@
 #include "player/PlayerEntity.h"
+#include <QJsonArray>
 
 PlayerEntity::PlayerEntity(const std::string& id)
     : id(id)
@@ -37,3 +38,44 @@ bool PlayerEntity::hasVisitedWorld(const std::string& worldID) const {
 EchoTouchLog& PlayerEntity::getEchoLog() {
     return echoLog;
 }
+
+QJsonObject PlayerEntity::toJson() const {
+    QJsonObject obj;
+    obj["id"] = QString::fromStdString(id);
+
+    // visitedWorlds
+    QJsonObject worldsJson;
+    for (const auto& [worldID, visited] : visitedWorlds)
+        worldsJson[QString::fromStdString(worldID)] = visited;
+    obj["visitedWorlds"] = worldsJson;
+
+    // generations
+    QJsonArray genArray;
+    for (const auto& character : generations)
+        genArray.append(character->toJson());
+    obj["generations"] = genArray;
+
+    j["echoLog"] = echoLog.toJson();
+
+    return obj;
+}
+
+void PlayerEntity::fromJson(const QJsonObject& json) {
+    id = json["id"].toString().toStdString();
+
+    visitedWorlds.clear();
+    auto worldsJson = json["visitedWorlds"].toObject();
+    for (const auto& key : worldsJson.keys())
+        visitedWorlds[key.toStdString()] = worldsJson[key].toBool();
+
+    generations.clear();
+    auto genArray = json["generations"].toArray();
+    for (const auto& entry : genArray) {
+        auto character = std::make_shared<PlayerCharacter>("", "", 0);
+        character->fromJson(entry.toObject());
+        generations.push_back(character);
+    }
+
+    echoLog.fromJson(j["echoLog"].toObject());
+}
+

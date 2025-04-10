@@ -1,8 +1,11 @@
 #include "worldgen/GLWidget.h"
+#include "worldgen/World.h"
 #include <cmath>
-#include <QTimer>
 #include <QMatrix4x4>
-#include <QOpenGLFunctions>
+#include <QTimer>
+#include <QOpenGLShaderProgram>
+#include <QMouseEvent>
+#include <QKeyEvent>
 
 GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent) {
     setFocusPolicy(Qt::StrongFocus);
@@ -11,9 +14,21 @@ GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent) {
     timer.start();
 }
 
+void GLWidget::setWorld(World* w) {
+    world = w;
+}
+
+void GLWidget::setRenderSystem(RenderSystem* rs) {
+    renderSystem = rs;
+}
+
+void GLWidget::setChunkManager(ChunkManager* cm) {
+    chunkManager = cm;
+}
+
 Tile GLWidget::fromLocation(const Location& loc, const Vec2i& regionCoords, int index) {
     if (!loc.visual) {
-        return Tile {
+        return Tile{
             float(regionCoords.x * 16 + index % 4),
             0.5f,
             float(regionCoords.y * 16 + index / 4),
@@ -21,30 +36,47 @@ Tile GLWidget::fromLocation(const Location& loc, const Vec2i& regionCoords, int 
         };
     }
 
-    return *(loc.visual); // pull rendering info directly
+    return Tile{
+        float(regionCoords.x * 16 + loc.visual->x),
+        loc.visual->height,
+        float(regionCoords.y * 16 + loc.visual->y),
+        loc.visual->r,
+        loc.visual->g,
+        loc.visual->b
+    };
 }
 
 void GLWidget::initializeGL() {
     initializeOpenGLFunctions();
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
-    tiles = chunkManager->collectRenderTiles();
 
-    // Stub terrain grid
-    for (int y = 0; y < 10; ++y) {
-        for (int x = 0; x < 10; ++x) {
-            tiles.push_back(Tile {
-                float(x), float(y),
-                0.2f + (x % 3) * 0.3f,
-                0.2f + (y % 4) * 0.2f,
-                0.5f
-            });
-        }
+    if (renderSystem) {
+        renderSystem->initGL();         // << set up context-bound GL functions
+        renderSystem->initialize();     // << set up VAOs, shaders, etc
     }
+
+    if (chunkManager)
+        tiles = chunkManager->collectRenderTiles();
 }
+
 
 void GLWidget::resizeGL(int w, int h) {
     glViewport(0, 0, w, h);
+}
+
+void GLWidget::drawTiles(QOpenGLShaderProgram* shader) {
+    for (const auto& tile : tiles) {
+        QMatrix4x4 model;
+        model.translate(QVector3D(tile.x, tile.height, tile.y));
+        model.scale(1.0f, 1.0f, 1.0f);
+
+        shader->setUniformValue("uModel", model);
+        shader->setUniformValue("uColor", tile.r, tile.g, tile.b);
+
+        if (renderSystem)
+            renderSystem->drawPrimitive(PrimitiveShape::RoundedCube);
+    }
 }
 
 void GLWidget::paintGL() {
@@ -60,33 +92,24 @@ void GLWidget::paintGL() {
     float eyeY = camDist * sin(radY);
     float eyeZ = camDist * cos(radX) * cos(radY);
 
-    view.lookAt(QVector3D(eyeX, eyeY, eyeZ),
-                QVector3D(5.0f, 0.0f, 5.0f),
-                QVector3D(0.0f, 1.0f, 0.0f));
+    view.lookAt(QVector3D(eyeX, eyeY, eyeZ), QVector3D(5.0f, 0.0f, 5.0f), QVector3D(0.0f, 1.0f, 0.0f));
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(projection.constData());
+    if (world) {
+        world->prepareRender();
+        tiles = world->getRenderTiles();
+    }
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(view.constData());
-
-    for (const auto& tile : tiles) {
-        glPushMatrix();
-        glTranslatef(tile.x, 0.0f, tile.y);
-        glColor3f(tile.r, tile.g, tile.b);
-
-        float h = tile.height;
-        glBegin(GL_QUADS);
-        glVertex3f(0, h, 0);
-        glVertex3f(1, h, 0);
-        glVertex3f(1, h, 1);
-        glVertex3f(0, h, 1);
-        glEnd();
-
-        glPopMatrix();
+    if (renderSystem) {
+        QOpenGLShaderProgram* shader = renderSystem->getShader("husk");
+        if (shader) {
+            shader->bind();
+            shader->setUniformValue("uView", view);
+            shader->setUniformValue("uProjection", projection);
+            drawTiles(shader);
+            shader->release();
+        }
     }
 }
-
 
 void GLWidget::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_W) camDist -= 1.0f;

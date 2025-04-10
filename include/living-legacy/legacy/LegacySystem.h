@@ -9,6 +9,9 @@ namespace living_legacy::legacy {
         std::string characterName;
         std::string summary;
         int generation = 0;
+        std::string id;
+        int age = 0;
+        std::string status;
     };
 
     struct Heir {

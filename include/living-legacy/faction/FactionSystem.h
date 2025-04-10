@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <vector>
 #include <QString>
+#include "npc/NPCManager.h"
 
 namespace living_legacy::faction {
     using FactionID = std::string;
@@ -31,6 +32,10 @@ namespace living_legacy::faction {
 
         // Relationships with other factions
         std::unordered_map<FactionID, FactionStanding> relationships;
+
+        std::vector<NPC> members;
+        int maxRank = 5;
+        std::vector<std::string> history;
     };
     
 
