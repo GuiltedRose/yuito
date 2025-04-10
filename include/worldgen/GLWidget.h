@@ -49,6 +49,8 @@ private:
     float camDist = 20.0f;
     QPoint lastMousePos;
 
+    Vec2i fakePlayerPos{0, 0};  // Simulated position
+
     RenderSystem* renderSystem = nullptr;
     ChunkManager* chunkManager = nullptr;
     World* world = nullptr;
