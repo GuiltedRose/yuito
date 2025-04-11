@@ -43,7 +43,13 @@ struct Location {
 class WorldGenerator {
 public:
     WorldGenerator(unsigned int seed);
+    
+    static constexpr float smoothFactor = 0.5f;
+
     float hybridNoise(float x, float y);
+    float smoothNoise(float x, float y);
+
+    float hashToFloat(const std::string& key, float min, float max);
 
     std::vector<Location> generateRegion(const Vec2i& regionCoords);
     void linkAdjacentRegions(const Vec2i& regionCoords);

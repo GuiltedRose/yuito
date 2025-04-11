@@ -1,6 +1,11 @@
 #pragma once
 
 #include "worldgen/WorldGenerator.h"
+#include <thread>
+#include <mutex>
+#include <queue>
+#include <condition_variable>
+#include <unordered_set>
 
 struct Chunk {
     Vec2i coords;
@@ -14,6 +19,7 @@ public:
 
     Chunk* getChunk(const Vec2i& coords);
     void updatePlayerRegion(const Vec2i& region);
+    ~ChunkManager();
     void unloadFarChunks();
 
     // Rendering:
@@ -27,6 +33,15 @@ private:
 
     const int chunkRadius = 3;
     Vec2i playerRegion;
+
+    std::unordered_set<Vec2i, Vec2i::Hash> enqueuedRegions;
+
+    std::thread workerThread;
+    mutable std::mutex chunkMutex;
+    std::condition_variable chunkCV;
+
+    std::queue<Vec2i> chunkLoadQueue;
+    bool running = true;
 
     bool isWithinRadius(const Vec2i& a, const Vec2i& b, int radius);
 };

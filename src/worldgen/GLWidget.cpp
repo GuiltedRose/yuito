@@ -8,7 +8,7 @@
 #include <QKeyEvent>
 
 GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent) {
-    camDist = 20.0f; // ← try something like this for a top-down view
+    camDist = 20.0f;
     camAngleX = 45.0f;
     camAngleY = 45.0f;
     
@@ -34,24 +34,29 @@ Tile GLWidget::fromLocation(const Location& loc, const Vec2i& regionCoords, int 
     const float tileSize = 1.0f;
     const int regionSize = 16;
 
+    float localX = index % regionSize;
+    float localZ = index / regionSize;
+
+    float worldX = regionCoords.x * regionSize + localX;
+    float worldZ = regionCoords.y * regionSize + localZ;
+
     if (!loc.visual) {
-        float x = regionCoords.x * regionSize + (index % regionSize);
-        float y = regionCoords.y * regionSize + (index / regionSize);
-        return Tile{ x * tileSize, 0.5f, y * tileSize, 0.4f, 0.6f, 0.2f };
+        return Tile{ worldX * tileSize, 0.5f, worldZ * tileSize, 0.4f, 0.6f, 0.2f };
     }
 
-    float worldX = (regionCoords.x * regionSize + loc.visual->x) * tileSize;
-    float worldY = (regionCoords.y * regionSize + loc.visual->y) * tileSize;
+    worldX = regionCoords.x * regionSize + loc.visual->x;
+    worldZ = regionCoords.y * regionSize + loc.visual->y;
 
     return Tile{
-        worldX,
+        worldX * tileSize,
         loc.visual->height,
-        worldY,
+        worldZ * tileSize,
         loc.visual->r,
         loc.visual->g,
         loc.visual->b
     };
 }
+
 
 
 void GLWidget::initializeGL() {
@@ -138,11 +143,9 @@ void GLWidget::keyPressEvent(QKeyEvent* event) {
     }
 
     world->setPlayerPosition(pos);
-    world->update();        // <== Important!
-    update();               // Trigger paintGL()
+    world->update();
+    update();
 }
-
-
 
 
 void GLWidget::mouseMoveEvent(QMouseEvent* event) {

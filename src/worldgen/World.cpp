@@ -11,9 +11,10 @@ World::World()
 }
 
 void World::update() {
+    int chunkSize = 16;
     Vec2i region = {
-        playerPosition.x / 16,
-        playerPosition.y / 16
+        static_cast<int>(std::floor(playerPosition.x / static_cast<float>(chunkSize))),
+        static_cast<int>(std::floor(playerPosition.y / static_cast<float>(chunkSize)))
     };
 
     chunkManager_.updatePlayerRegion(region);
