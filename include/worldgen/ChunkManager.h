@@ -1,47 +1,54 @@
 #pragma once
 
-#include "worldgen/WorldGenerator.h"
-#include <thread>
-#include <mutex>
-#include <queue>
-#include <condition_variable>
+#include <unordered_map>
 #include <unordered_set>
+#include <queue>
+#include <mutex>
+#include <thread>
+#include <condition_variable>
+#include "math/Vec2.h"
+#include "worldgen/WorldGenerator.h"
+#include "render/RenderTypes.h"
 
 struct Chunk {
-    Vec2i coords;
+    Math::Vec2i coords;
     std::vector<Location> locations;
-    bool isModified = false;
+};
+
+struct TimedChunk {
+    Chunk data;
+    int staleFrames = 0;
 };
 
 class ChunkManager {
 public:
     ChunkManager(WorldGenerator& generator, unsigned int seed);
-
-    Chunk* getChunk(const Vec2i& coords);
-    void updatePlayerRegion(const Vec2i& region);
     ~ChunkManager();
-    void unloadFarChunks();
 
-    // Rendering:
-    std::vector<Tile> collectRenderTiles() const;
+    Chunk* getChunk(const Math::Vec2i& coords, MapLayer layer);
+    void updatePlayerRegion(const RegionKey& regionKey);
+    void setMapLayer(MapLayer layer);
+
+    std::vector<Tile> collectRenderTiles(MapLayer layer) const;
 
 private:
-    std::unordered_map<Vec2i, Chunk, Vec2i::Hash> activeChunks;
+    void unloadFarChunks();
+    bool isWithinRadius(const Math::Vec2i& a, const Math::Vec2i& b, int radius);
 
     WorldGenerator& generator;
     unsigned int seed;
 
-    const int chunkRadius = 3;
-    Vec2i playerRegion;
+    MapLayer currentLayer = MapLayer::Surface;
+    RegionKey playerRegion;
 
-    std::unordered_set<Vec2i, Vec2i::Hash> enqueuedRegions;
+    int chunkRadius = 2;
+    
+    std::unordered_set<RegionKey> enqueuedRegions;
+    std::queue<RegionKey> chunkLoadQueue;
 
     std::thread workerThread;
-    mutable std::mutex chunkMutex;
     std::condition_variable chunkCV;
-
-    std::queue<Vec2i> chunkLoadQueue;
+    std::unordered_map<RegionKey, TimedChunk> activeChunks;
+    mutable std::mutex chunkMutex;
     bool running = true;
-
-    bool isWithinRadius(const Vec2i& a, const Vec2i& b, int radius);
 };

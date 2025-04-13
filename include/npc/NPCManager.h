@@ -2,8 +2,8 @@
 
 #include <vector>
 #include <string>
-#include "render/Vec3.h"
-#include "render/Quaternion.h"
+#include "math/Vec3.h"
+#include "math/Quaternion.h"
 #include "render/colors.h"
 #include "UUID.h"
 

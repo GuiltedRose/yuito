@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "render/Vec3.h"
+#include "math/Vec3.h"
 
 struct AuraParticle {
     Vec3 position;

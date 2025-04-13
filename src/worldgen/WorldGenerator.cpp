@@ -1,13 +1,16 @@
 #include "worldgen/WorldGenerator.h"
+#include "worldgen/Noise.h"
+#include "worldgen/CaveGenerator.h"
 #include <sstream>
 #include <algorithm>
 #include <random>
-#include <cmath> // for std::lerp if using C++20; otherwise implement manually
+#include <cmath>
 #include <iostream>
 
-WorldGenerator::WorldGenerator(unsigned int seed) : rng(seed) {}
+WorldGenerator::WorldGenerator(unsigned int seed, float smoothFactor)
+    : seed(seed), rng(seed), smoothFactor(smoothFactor) {}
 
-std::string WorldGenerator::makeLocationID(const Vec2i& region, int index) {
+std::string WorldGenerator::makeLocationID(const Math::Vec2i& region, int index) {
     std::ostringstream oss;
     oss << "r" << region.x << "_" << region.y << "_loc" << index;
     return oss.str();
@@ -25,180 +28,228 @@ float WorldGenerator::hashToFloat(const std::string& key, float min, float max) 
     return min + t * (max - min);
 }
 
-float WorldGenerator::hybridNoise(float x, float y) {
-    float baseX = (x + 1000.0f) * 0.03f;
-    float baseY = (y + 2000.0f) * 0.03f;
+std::vector<Location> WorldGenerator::generateRegion(const Math::Vec2i& regionCoords) {
+    const std::vector<int> seedOffsets = {0, 7, 13, 42};
+    for (int offset : seedOffsets) {
+        unsigned int nudgedSeed = seed + offset;
+        auto region = generateRegionWithSeed(regionCoords, nudgedSeed);
+        if (!regionIsTooMountainy(region)) {
+            RegionKey key = {regionCoords, MapLayer::Surface};
+            layeredRegionMap[key] = region;
+            return region;
+        }
+    }
 
-    float detailX = (x + 42.0f) * 0.15f;
-    float detailY = (y - 77.0f) * 0.15f;
-
-    float erosionX = (x - 88.0f) * 0.01f;  // Lower frequency
-    float erosionY = (y + 57.0f) * 0.01f;
-
-    float base = perlinNoise(baseX, baseY);     // [0, 1]
-    float detail = perlinNoise(detailX, detailY); // [0, 1]
-    float erosion = worleyNoise(erosionX, erosionY); // [0, 1]
-
-    // Center around 0.5 with better spread
-    float height = 0.6f * base + 0.3f * detail;
-
-    // Optional: subtract erosion to add valleys
-    height *= (0.7f + 0.3f * (1.0f - erosion));
-
-    return std::clamp(height, 0.0f, 1.0f);
+    auto fallback = generateRegionWithSeed(regionCoords, seed + seedOffsets.back());
+    RegionKey fallbackKey = {regionCoords, MapLayer::Surface};
+    layeredRegionMap[fallbackKey] = fallback;
+    return fallback;
 }
 
-float WorldGenerator::smoothNoise(float x, float y) {
-    // Smooth the noise using the default constant for smoothFactor
-    float topLeft = hybridNoise(x - 1.0f, y - 1.0f);
-    float topRight = hybridNoise(x + 1.0f, y - 1.0f);
-    float bottomLeft = hybridNoise(x - 1.0f, y + 1.0f);
-    float bottomRight = hybridNoise(x + 1.0f, y + 1.0f);
+bool WorldGenerator::regionIsTooMountainy(const std::vector<Location>& region) {
+    int count = 0;
+    for (const auto& loc : region)
+        if (loc.terrainType == "Mountain") count++;
 
-    // Average neighboring values and return smoothed noise
-    return std::lerp(std::lerp(topLeft, topRight, smoothFactor),
-                     std::lerp(bottomLeft, bottomRight, smoothFactor), smoothFactor);
+    return (static_cast<float>(count) / region.size()) > 0.35f;
 }
 
-std::vector<Location> WorldGenerator::generateRegion(const Vec2i& regionCoords) {
+void WorldGenerator::applyGaussianSmoothingPadded(std::vector<std::shared_ptr<VisualData>>& grid, int size) {
+    auto copy = grid;
+    const int weights[3][3] = {{1, 2, 1}, {2, 4, 2}, {1, 2, 1}};
+
+    for (int y = 1; y < size - 1; ++y) {
+        for (int x = 1; x < size - 1; ++x) {
+            float sumH = 0, sumR = 0, sumG = 0, sumB = 0, weightSum = 0;
+
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    int w = weights[dy + 1][dx + 1];
+                    auto& v = copy[(y + dy) * size + (x + dx)];
+                    sumH += v->height * w;
+                    sumR += v->r * w;
+                    sumG += v->g * w;
+                    sumB += v->b * w;
+                    weightSum += w;
+                }
+            }
+
+            auto& v = grid[y * size + x];
+            v->height = sumH / weightSum;
+            v->r = std::clamp(sumR / weightSum, 0.0f, 1.0f);
+            v->g = std::clamp(sumG / weightSum, 0.0f, 1.0f);
+            v->b = std::clamp(sumB / weightSum, 0.0f, 1.0f);
+        }
+    }
+}
+
+std::vector<Location> WorldGenerator::generateRegionWithSeed(const Math::Vec2i& regionCoords, unsigned int trialSeed) {
     const int chunkSize = 16;
+    const int paddedSize = chunkSize + 2;
+    std::vector<std::shared_ptr<VisualData>> visualGrid(paddedSize * paddedSize);
     std::vector<Location> locations;
+
+    RegionKey surfaceKey = { regionCoords, MapLayer::Surface };
+
+    for (int y = 0; y < paddedSize; ++y) {
+        for (int x = 0; x < paddedSize; ++x) {
+            float globalX = static_cast<float>(regionCoords.x * chunkSize + (x - 1));
+            float globalY = static_cast<float>(regionCoords.y * chunkSize + (y - 1));
+
+            float base = getNoise(NoiseType::Worley, globalX * 0.01f, globalY * 0.01f, trialSeed);
+            float detail = getNoise(NoiseType::Worley, globalX * 0.05f, globalY * 0.05f, trialSeed);
+            float bumpiness = getNoise(NoiseType::Worley, globalX * 0.10f, globalY * 0.10f, trialSeed);
+            float combined = base * 0.5f + detail * 0.3f + bumpiness * 0.2f;
+            float shaped = std::pow(combined, 1.4f);
+
+            Vec2 center = getVoronoiCellCenter(globalX * 0.05f, globalY * 0.05f, trialSeed);
+            float dx = globalX * 0.05f - center.x;
+            float dy = globalY * 0.05f - center.y;
+            float dist = std::sqrt(dx * dx + dy * dy);
+            float influence = std::exp(-dist * dist * 2.5f);
+
+            float height = shaped * (1.0f - influence) + 0.3f * influence;
+            height = std::clamp(height, 0.0f, 1.0f);
+
+            auto visual = std::make_shared<VisualData>();
+            visual->x = static_cast<float>(x - 1);
+            visual->y = static_cast<float>(y - 1);
+            visual->height = height * 12.0f;
+            visual->r = std::clamp(0.2f + combined * 0.6f, 0.0f, 1.0f);
+            visual->g = std::clamp(0.4f - dist * 0.3f, 0.0f, 1.0f);
+            visual->b = std::clamp(0.3f + height * 0.5f, 0.0f, 1.0f);
+
+            visualGrid[y * paddedSize + x] = visual;
+        }
+    }
+
+    applyGaussianSmoothingPadded(visualGrid, paddedSize);
 
     for (int y = 0; y < chunkSize; ++y) {
         for (int x = 0; x < chunkSize; ++x) {
-            int index = y * chunkSize + x;
+            int visualIndex = (y + 1) * paddedSize + (x + 1);
+            int locIndex = y * chunkSize + x;
+            std::string id = makeLocationID(regionCoords, locIndex);
 
-            // Stable ID and metadata
-            std::string id = makeLocationID(regionCoords, index);
-            std::string name = "Untamed Wilderness";
-            std::string terrain = "wilds";
-            std::string tag = "wilderness";
-            std::string description = "An untamed area of the world.";
-
-            // World-space coordinates
             float globalX = static_cast<float>(regionCoords.x * chunkSize + x);
             float globalY = static_cast<float>(regionCoords.y * chunkSize + y);
+            auto visual = visualGrid[visualIndex];
 
-            // Apply smoothing to the height calculation
-            float h = smoothNoise(globalX, globalY);
-            float normHeight = std::clamp(h, 0.0f, 1.0f);
+            bool isSpecialSite = (std::hash<std::string>{}(id) % 12 == 0);
+            float combined = getNoise(NoiseType::Worley, globalX * 0.05f, globalY * 0.05f, trialSeed);
 
-            // Declare visual data here
-            auto visual = std::make_shared<VisualData>();
+            if (visual->height / 12.0f < 0.18f && combined < 0.15f && isSpecialSite) {
+                std::string caveID = "cave_" + id;
+                int size = CaveGenerator::rollCaveNetworkSize(caveID);
 
-            // Terrain detection (mountains, rivers, caverns, etc.)
-            bool isMountain = normHeight > 0.75f;
-            bool isRiver = normHeight < 0.2f && std::abs(worleyNoise(globalX, globalY)) < 0.1f;
-            bool isCavern = normHeight < 0.15f;
-            bool isVolcanic = normHeight > 0.8f && worleyNoise(globalX, globalY) < 0.2f;  // Volcanic regions
-            bool isSnowy = normHeight > 0.9f;
+                CaveNetwork cave;
+                cave.id = caveID;
+                cave.entranceRegion = regionCoords;
+                cave.size = size;
+                cave.hasBoss = (size >= 10);
+                cave.connectedEntrances.push_back(id);
+                cave.connectedRegions = CaveGenerator::generateCaveLayout(regionCoords, size, std::hash<std::string>{}(caveID));
+                cave.caveGrid = CaveGenerator::generateCaveGrid(regionCoords, std::hash<std::string>{}(caveID), 32, 32);
+                caveNetworks[caveID] = cave;
 
-            // Handle mountain terrain
-            if (isMountain) {
-                terrain = "Mountain";
-                tag = "ridge";
-                name = "Craggy Mountains";
-                description = "Jagged peaks rise into the clouds.";
-                visual->r = 0.4f;
-                visual->g = 0.4f;
-                visual->b = 0.4f;
-                visual->height = h * 16.0f; // Height exaggeration for mountains
-            }
-
-            // Handle rivers
-            else if (isRiver) {
-                terrain = "River";
-                tag = "water";
-                name = "Flowing River";
-                description = "A river winding through the terrain, carrying fresh waters.";
-                visual->r = 0.2f;
-                visual->g = 0.5f;
-                visual->b = 0.8f;  // River's blue tone
-                visual->height = 0.0f; // River level at sea level
-            }
-
-            // Handle caverns
-            else if (isCavern) {
-                terrain = "Cavern";
-                tag = "dark";
-                name = "Underground Cavern";
-                description = "A dark and damp cavern, home to ancient creatures.";
                 visual->r = 0.1f;
                 visual->g = 0.1f;
-                visual->b = 0.2f;  // Dark tone for caverns
-                visual->height = h * 2.0f; // Low exaggeration for underground
+                visual->b = 0.2f;
+                visual->height = 0.1f * 12.0f;
+
+                for (int oy = -2; oy <= 2; ++oy) {
+                    for (int ox = -2; ox <= 2; ++ox) {
+                        float dist = std::sqrt(ox * ox + oy * oy);
+                        if (dist > 2.2f) continue;
+
+                        int caveX = x + ox;
+                        int caveY = y + oy;
+                        int index = caveY * paddedSize + caveX;
+
+                        if (index >= 0 && index < visualGrid.size()) {
+                            auto& v = visualGrid[index];
+                            v->height = 0.02f * 12.0f;
+                            v->r = 0.1f;
+                            v->g = 0.1f;
+                            v->b = 0.2f;
+                        }
+                    }
+                }
+
+                std::cout << "[Cave] " << caveID << " @ " << regionCoords.x << "," << regionCoords.y
+                          << " | size: " << size << (cave.hasBoss ? " [Boss]" : "") << "\n";
             }
 
-            // Handle volcanic terrain
-            else if (isVolcanic) {
-                terrain = "Volcanic Region";
-                tag = "lava";
-                name = "Fiery Volcano";
-                description = "A land scorched by lava and volcanic ash.";
-                visual->r = 0.8f;
-                visual->g = 0.2f;
-                visual->b = 0.0f;  // Lava color
-                visual->height = h * 20.0f; // Higher exaggeration for volcanic regions
-            }
-
-            // Handle snowy regions
-            else if (isSnowy) {
-                terrain = "Snowy Peak";
-                tag = "snow";
-                name = "Frozen Summit";
-                description = "Snow-covered peaks high above the world.";
-                visual->r = 0.9f;
-                visual->g = 0.9f;
-                visual->b = 1.0f;  // Snowy peaks
-                visual->height = h * 16.0f; // Height exaggeration for snow peaks
-            }
-
-            // Default terrain handling
-            else {
-                setColorForHeight(normHeight, visual->r, visual->g, visual->b);
-                visual->height = h * 12.0f;  // Default height exaggeration
-            }
-
-            // Set position of the location
-            visual->x = static_cast<float>(x);
-            visual->y = static_cast<float>(y);
-
-            // Push location into the region
             locations.push_back(Location{
-                id, name, description, terrain, { tag }, {}, visual
+                id, "Unknown", "Smoothed terrain", "wilds", { "wilderness" }, {}, visual
             });
         }
     }
 
-    // Add the generated region to the region map
-    regionMap[regionCoords] = locations;
+    layeredRegionMap[surfaceKey] = locations;
     return locations;
 }
 
-void WorldGenerator::linkAdjacentRegions(const Vec2i& regionCoords) {
-    static const std::vector<Vec2i> offsets = {
+void WorldGenerator::stitchHeights(std::shared_ptr<VisualData>& a, std::shared_ptr<VisualData>& b) {
+    float avgHeight = (a->height + b->height) * 0.5f;
+    a->height = avgHeight;
+    b->height = avgHeight;
+
+    a->r = (a->r + b->r) * 0.5f;
+    a->g = (a->g + b->g) * 0.5f;
+    a->b = (a->b + b->b) * 0.5f;
+
+    b->r = a->r;
+    b->g = a->g;
+    b->b = a->b;
+}
+
+void WorldGenerator::linkAdjacentRegions(const RegionKey& currentKey) {
+    if (layeredRegionMap.find(currentKey) == layeredRegionMap.end()) return;
+    auto& region = layeredRegionMap[currentKey];
+
+    static const std::vector<Math::Vec2i> offsets = {
         {1, 0}, {-1, 0}, {0, 1}, {0, -1}
     };
 
     for (const auto& offset : offsets) {
-        Vec2i neighbor = { regionCoords.x + offset.x, regionCoords.y + offset.y };
-        if (regionMap.find(neighbor) == regionMap.end()) continue;
+        Math::Vec2i neighborCoords = {
+            currentKey.coords.x + offset.x,
+            currentKey.coords.y + offset.y
+        };
+        RegionKey neighborKey = { neighborCoords, currentKey.layer };
 
-        auto& thisRegion = regionMap[regionCoords];
-        auto& otherRegion = regionMap[neighbor];
+        if (layeredRegionMap.find(neighborKey) == layeredRegionMap.end()) continue;
+        auto& neighbor = layeredRegionMap[neighborKey];
 
-        // Try linking similar terrain types together
-        if (!thisRegion.empty() && !otherRegion.empty()) {
-            for (auto& loc : thisRegion) {
-                if (loc.terrainType == "Mountain") {
-                    // Link to nearby plains, forest, or river
-                    otherRegion[0].connections.push_back(loc.id);
-                }
+        if (offset.x == 1) {
+            for (int y = 0; y < 16; ++y) {
+                int a = y * 16 + 15;
+                int b = y * 16 + 0;
+                stitchHeights(region[a].visual, neighbor[b].visual);
+            }
+        } else if (offset.x == -1) {
+            for (int y = 0; y < 16; ++y) {
+                int a = y * 16 + 0;
+                int b = y * 16 + 15;
+                stitchHeights(region[a].visual, neighbor[b].visual);
+            }
+        } else if (offset.y == 1) {
+            for (int x = 0; x < 16; ++x) {
+                int a = 15 * 16 + x;
+                int b = x;
+                stitchHeights(region[a].visual, neighbor[b].visual);
+            }
+        } else if (offset.y == -1) {
+            for (int x = 0; x < 16; ++x) {
+                int a = x;
+                int b = 15 * 16 + x;
+                stitchHeights(region[a].visual, neighbor[b].visual);
             }
         }
     }
 }
 
-const std::unordered_map<Vec2i, std::vector<Location>, Vec2i::Hash>& WorldGenerator::getWorld() const {
-    return regionMap;
+const std::unordered_map<RegionKey, std::vector<Location>, std::hash<RegionKey>>& WorldGenerator::getLayeredWorld() const {
+    return layeredRegionMap;
 }

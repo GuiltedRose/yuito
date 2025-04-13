@@ -3,8 +3,8 @@
 #include <optional>
 #include <memory>
 #include <string>
-#include "render/Vec3.h"
-#include "render/Quaternion.h"
+#include "math/Vec3.h"
+#include "math/Quaternion.h"
 #include "render/colors.h"
 #include "render/RenderSystem.h"
 

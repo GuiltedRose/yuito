@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include "render/Vec3.h"
+#include "math/Vec3.h"
 
 class CharacterData {
 public:

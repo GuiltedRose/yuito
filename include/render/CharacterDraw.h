@@ -1,5 +1,5 @@
 #pragma once
-#include "Vec3.h"
-#include "Quaternion.h"
+#include "math/Vec3.h"
+#include "math/Quaternion.h"
 
 void drawCharacterMesh(const Vec3& position, const Quaternion& rotation);

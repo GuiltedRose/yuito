@@ -1,11 +1,12 @@
 #include "worldgen/GLWidget.h"
-#include "worldgen/World.h"
+
 #include <cmath>
 #include <QMatrix4x4>
 #include <QTimer>
 #include <QOpenGLShaderProgram>
 #include <QMouseEvent>
 #include <QKeyEvent>
+#include <iostream>
 
 GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent) {
     camDist = 20.0f;
@@ -30,7 +31,7 @@ void GLWidget::setChunkManager(ChunkManager* cm) {
     chunkManager = cm;
 }
 
-Tile GLWidget::fromLocation(const Location& loc, const Vec2i& regionCoords, int index) {
+Tile GLWidget::fromLocation(const Location& loc, const Math::Vec2i& regionCoords, int index) {
     const float tileSize = 1.0f;
     const int regionSize = 16;
 
@@ -70,7 +71,7 @@ void GLWidget::initializeGL() {
     }
 
     if (chunkManager)
-        tiles = chunkManager->collectRenderTiles();
+        visibleTiles = chunkManager->collectRenderTiles(currentLayer);
 }
 
 
@@ -79,7 +80,7 @@ void GLWidget::resizeGL(int w, int h) {
 }
 
 void GLWidget::drawTiles(QOpenGLShaderProgram* shader) {
-    for (const auto& tile : tiles) {
+    for (const auto& tile : visibleTiles) {
         QMatrix4x4 model;
         model.translate(QVector3D(tile.x, tile.height, tile.y));
         model.scale(0.98f, 1.0f, 0.98f); 
@@ -102,7 +103,7 @@ void GLWidget::paintGL() {
     QVector3D center(8.0f, 0.0f, 8.0f);
 
     if (world) {
-        const Vec2i& pos = world->getPlayerPosition();
+        const Math::Vec2i& pos = world->getPlayerPosition();
         center = QVector3D(pos.x, 0.0f, pos.y);
     }
 
@@ -113,9 +114,9 @@ void GLWidget::paintGL() {
     view.lookAt(eye, center, up);
 
     if (world) {
-        world->prepareRender();  // populate tiles
-        tiles = world->getRenderTiles();
-    }
+        world->prepareRender(currentLayer);
+        visibleTiles = world->getRenderTiles(currentLayer);
+    }    
 
     if (renderSystem) {
         QOpenGLShaderProgram* shader = renderSystem->getShader("husk");
@@ -133,20 +134,29 @@ void GLWidget::paintGL() {
 void GLWidget::keyPressEvent(QKeyEvent* event) {
     if (!world) return;
 
-    Vec2i pos = world->getPlayerPosition();
+    Math::Vec2i pos = world->getPlayerPosition();
 
     switch (event->key()) {
         case Qt::Key_W: pos.y -= 1; break;
         case Qt::Key_S: pos.y += 1; break;
         case Qt::Key_A: pos.x -= 1; break;
         case Qt::Key_D: pos.x += 1; break;
+
+        case Qt::Key_Z:
+            currentLayer = (currentLayer == MapLayer::Surface)
+                ? MapLayer::Underground
+                : MapLayer::Surface;
+
+            std::cout << "[Layer] Switched to "
+                      << (currentLayer == MapLayer::Surface ? "Surface" : "Underground")
+                      << std::endl;
+            break;
     }
 
     world->setPlayerPosition(pos);
     world->update();
     update();
 }
-
 
 void GLWidget::mouseMoveEvent(QMouseEvent* event) {
     QPoint delta = event->pos() - lastMousePos;

@@ -3,40 +3,49 @@
 #include <random>
 
 World::World()
-    : generator_(std::random_device{}()),                      // Random seed for generator
-      chunkManager_(generator_, std::random_device{}()),       // Random seed for chunk manager
-      playerPosition{0, 0} {
-    
-    chunkManager_.updatePlayerRegion({0, 0}); // Load initial region
+    : generator_(std::random_device{}()),
+      chunkManager_(generator_, std::random_device{}()),
+      playerPosition{0, 0},
+      currentLayer(MapLayer::Surface)
+{
+    chunkManager_.updatePlayerRegion({playerPosition, currentLayer});
 }
 
 void World::update() {
     int chunkSize = 16;
-    Vec2i region = {
+    Math::Vec2i region = {
         static_cast<int>(std::floor(playerPosition.x / static_cast<float>(chunkSize))),
         static_cast<int>(std::floor(playerPosition.y / static_cast<float>(chunkSize)))
     };
 
-    chunkManager_.updatePlayerRegion(region);
+    chunkManager_.updatePlayerRegion({region, currentLayer});
     state_.update();
 }
 
-void World::prepareRender() {
+void World::prepareRender(MapLayer layer) {
     renderTiles_.clear();
-    auto tiles = chunkManager_.collectRenderTiles();
+    auto tiles = chunkManager_.collectRenderTiles(layer);
     renderTiles_.insert(renderTiles_.end(), tiles.begin(), tiles.end());
 }
 
-const std::vector<Tile>& World::getRenderTiles() const {
+const std::vector<Tile>& World::getRenderTiles(MapLayer layer) const {
     return renderTiles_;
 }
 
-void World::setPlayerPosition(const Vec2i& pos) {
+void World::setPlayerPosition(const Math::Vec2i& pos) {
     playerPosition = pos;
 }
 
-const Vec2i& World::getPlayerPosition() const {
+const Math::Vec2i& World::getPlayerPosition() const {
     return playerPosition;
+}
+
+void World::setCurrentLayer(MapLayer layer) {
+    currentLayer = layer;
+}
+
+MapLayer World::getCurrentLayer() const {
+    return currentLayer;
 }
 
 living_legacy::world::WorldState& World::state() {

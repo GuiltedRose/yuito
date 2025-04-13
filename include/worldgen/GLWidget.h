@@ -2,8 +2,10 @@
 
 #include "render/RenderSystem.h"
 #include "render/ShaderSource.h"
-#include "worldgen/WorldGenerator.h"
+#include "render/RenderTypes.h"
+#include "math/Vec2.h"
 #include "worldgen/ChunkManager.h"
+#include "worldgen/World.h"
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions_4_5_Core>
@@ -12,19 +14,12 @@
 #include <QMouseEvent>
 #include <vector>
 
-class World;
-
-struct Tile {
-    float x, height, y;
-    float r, g, b;
-};
-
 class GLWidget : public QOpenGLWidget, protected QOpenGLFunctions_4_5_Core {
     Q_OBJECT
 public:
     explicit GLWidget(QWidget* parent = nullptr);
 
-    static Tile fromLocation(const Location& loc, const Vec2i& regionCoords, int index);
+    static Tile fromLocation(const Location& loc, const Math::Vec2i& regionCoords, int index);
 
     void setWorld(World* w);
     void setRenderSystem(RenderSystem* rs);
@@ -41,7 +36,8 @@ protected:
 private:
     void drawTiles(QOpenGLShaderProgram* shader);
 
-    std::vector<Tile> tiles;
+    std::vector<Tile> visibleTiles;
+    MapLayer currentLayer = MapLayer::Surface;
     QTimer timer;
 
     float camAngleX = 45.0f;
@@ -49,7 +45,7 @@ private:
     float camDist = 20.0f;
     QPoint lastMousePos;
 
-    Vec2i fakePlayerPos{0, 0};  // Simulated position
+    Math::Vec2i fakePlayerPos{0, 0};  // Simulated position
 
     RenderSystem* renderSystem = nullptr;
     ChunkManager* chunkManager = nullptr;

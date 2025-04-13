@@ -2,19 +2,24 @@
 
 #include "living-legacy/world/WorldState.h"
 #include "worldgen/ChunkManager.h"
-#include "worldgen/WorldGenerator.h" // includes Vec2i, Vec2
-#include "worldgen/GLWidget.h"       // for Tile
+#include "math/Vec2.h"
+#include "render/RenderTypes.h"
+#include "worldgen/WorldTypes.h"
+#include "worldgen/WorldGenerator.h"
 
 class World {
     public:
         World();
     
         void update();
-        void prepareRender();
+        void prepareRender(MapLayer layer);
+        const std::vector<Tile>& getRenderTiles(MapLayer layer) const;
+
+        void setPlayerPosition(const Math::Vec2i& pos);
+        const Math::Vec2i& getPlayerPosition() const;
     
-        const std::vector<Tile>& getRenderTiles() const;
-        void setPlayerPosition(const Vec2i& pos);
-        const Vec2i& getPlayerPosition() const;
+        void setCurrentLayer(MapLayer layer);
+        MapLayer getCurrentLayer() const;
     
         living_legacy::world::WorldState& state();
         ChunkManager& chunks();
@@ -22,7 +27,9 @@ class World {
     private:
         WorldGenerator generator_;
         ChunkManager chunkManager_;
-        Vec2i playerPosition;
+        Math::Vec2i playerPosition;
+    
+        MapLayer currentLayer = MapLayer::Surface;
         std::vector<Tile> renderTiles_;
         living_legacy::world::WorldState state_;
-    };
+    };    
