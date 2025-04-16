@@ -99,15 +99,13 @@ void GLWidget::paintGL() {
     QMatrix4x4 projection;
     projection.perspective(60.0f, float(width()) / float(height()), 0.1f, 100.0f);
 
-    // Default to some center if world is missing
     QVector3D center(8.0f, 0.0f, 8.0f);
-
     if (world) {
         const Math::Vec2i& pos = world->getPlayerPosition();
         center = QVector3D(pos.x, 0.0f, pos.y);
     }
 
-    QVector3D eye = center + QVector3D(0.0f, camDist, camDist); // Above and back
+    QVector3D eye = center + QVector3D(0.0f, camDist, camDist);
     QVector3D up(0.0f, 1.0f, 0.0f);
 
     QMatrix4x4 view;
@@ -116,7 +114,7 @@ void GLWidget::paintGL() {
     if (world) {
         world->prepareRender(currentLayer);
         visibleTiles = world->getRenderTiles(currentLayer);
-    }    
+    }
 
     if (renderSystem) {
         QOpenGLShaderProgram* shader = renderSystem->getShader("husk");
@@ -124,12 +122,26 @@ void GLWidget::paintGL() {
             shader->bind();
             shader->setUniformValue("uView", view);
             shader->setUniformValue("uProjection", projection);
-            drawTiles(shader);
+
+            if (currentLayer == MapLayer::Surface) {
+                drawTiles(shader);
+            }
+
+            if (currentLayer == MapLayer::Underground && chunkManager) {
+                const auto& chunks = chunkManager->getActiveChunks();
+                for (const auto& [key, timedChunk] : chunks) {
+                    if (key.layer != MapLayer::Underground) continue;
+                    if (timedChunk.caveMesh && !timedChunk.caveMesh->vertices.empty()) {
+                        renderSystem->uploadCaveMesh(*timedChunk.caveMesh);
+                        renderSystem->drawCaveMesh();
+                    }
+                }
+            }
+
             shader->release();
         }
     }
 }
-
 
 void GLWidget::keyPressEvent(QKeyEvent* event) {
     if (!world) return;
@@ -146,6 +158,12 @@ void GLWidget::keyPressEvent(QKeyEvent* event) {
             currentLayer = (currentLayer == MapLayer::Surface)
                 ? MapLayer::Underground
                 : MapLayer::Surface;
+
+                if (chunkManager) {
+                    chunkManager->setMapLayer(currentLayer);
+                    const Math::Vec2i& playerPos = world->getPlayerPosition();
+                    chunkManager->updatePlayerRegion({playerPos, currentLayer});
+                }                
 
             std::cout << "[Layer] Switched to "
                       << (currentLayer == MapLayer::Surface ? "Surface" : "Underground")

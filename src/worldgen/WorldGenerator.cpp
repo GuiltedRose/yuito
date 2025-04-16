@@ -91,6 +91,7 @@ std::vector<Location> WorldGenerator::generateRegionWithSeed(const Math::Vec2i& 
 
     RegionKey surfaceKey = { regionCoords, MapLayer::Surface };
 
+    // Step 1: Generate visual data with layered noise
     for (int y = 0; y < paddedSize; ++y) {
         for (int x = 0; x < paddedSize; ++x) {
             float globalX = static_cast<float>(regionCoords.x * chunkSize + (x - 1));
@@ -125,6 +126,7 @@ std::vector<Location> WorldGenerator::generateRegionWithSeed(const Math::Vec2i& 
 
     applyGaussianSmoothingPadded(visualGrid, paddedSize);
 
+    // Step 2: Build region locations, mark cave entrances
     for (int y = 0; y < chunkSize; ++y) {
         for (int x = 0; x < chunkSize; ++x) {
             int visualIndex = (y + 1) * paddedSize + (x + 1);
@@ -138,6 +140,7 @@ std::vector<Location> WorldGenerator::generateRegionWithSeed(const Math::Vec2i& 
             bool isSpecialSite = (std::hash<std::string>{}(id) % 12 == 0);
             float combined = getNoise(NoiseType::Worley, globalX * 0.05f, globalY * 0.05f, trialSeed);
 
+            // Cave entrance placement only — no full cave generation here
             if (visual->height / 12.0f < 0.18f && combined < 0.15f && isSpecialSite) {
                 std::string caveID = "cave_" + id;
                 int size = CaveGenerator::rollCaveNetworkSize(caveID);
@@ -149,7 +152,7 @@ std::vector<Location> WorldGenerator::generateRegionWithSeed(const Math::Vec2i& 
                 cave.hasBoss = (size >= 10);
                 cave.connectedEntrances.push_back(id);
                 cave.connectedRegions = CaveGenerator::generateCaveLayout(regionCoords, size, std::hash<std::string>{}(caveID));
-                cave.caveGrid = CaveGenerator::generateCaveGrid(regionCoords, std::hash<std::string>{}(caveID), 32, 32);
+
                 caveNetworks[caveID] = cave;
 
                 visual->r = 0.1f;
@@ -176,7 +179,7 @@ std::vector<Location> WorldGenerator::generateRegionWithSeed(const Math::Vec2i& 
                     }
                 }
 
-                std::cout << "[Cave] " << caveID << " @ " << regionCoords.x << "," << regionCoords.y
+                std::cout << "[Cave Entrance] " << caveID << " @ " << regionCoords.x << "," << regionCoords.y
                           << " | size: " << size << (cave.hasBoss ? " [Boss]" : "") << "\n";
             }
 
@@ -188,6 +191,10 @@ std::vector<Location> WorldGenerator::generateRegionWithSeed(const Math::Vec2i& 
 
     layeredRegionMap[surfaceKey] = locations;
     return locations;
+}
+
+std::vector<Location> WorldGenerator::generateUndergroundRegionWithSeed(const RegionKey& key, unsigned int seed) {
+    return CaveGenerator::generateUndergroundRegionWithSeed(key, seed);
 }
 
 void WorldGenerator::stitchHeights(std::shared_ptr<VisualData>& a, std::shared_ptr<VisualData>& b) {

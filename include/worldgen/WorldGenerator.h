@@ -8,8 +8,9 @@
 #include <memory>
 #include "math/Vec2.h"
 #include "worldgen/Noise.h"
-#include "worldgen/CaveGenerator.h"
+#include "worldgen/WorldTypes.h"
 #include "worldgen/Location.h"
+#include "worldgen/CaveGenerator.h"
 #include "render/RenderTypes.h"
 
 class WorldGenerator {
@@ -23,6 +24,7 @@ class WorldGenerator {
     
         std::vector<Location> generateRegion(const Math::Vec2i& regionCoords);
         std::vector<Location> generateRegionWithSeed(const Math::Vec2i& regionCoords, unsigned int trialSeed);
+        std::vector<Location> generateUndergroundRegionWithSeed(const RegionKey& key, unsigned int seed);
     
         bool regionIsTooMountainy(const std::vector<Location>& region);
     

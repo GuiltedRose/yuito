@@ -6,9 +6,11 @@
 #include <mutex>
 #include <thread>
 #include <condition_variable>
+#include <optional>
 #include "math/Vec2.h"
 #include "worldgen/WorldGenerator.h"
 #include "render/RenderTypes.h"
+#include "render/CaveMeshGenerator.h"
 
 struct Chunk {
     Math::Vec2i coords;
@@ -18,6 +20,7 @@ struct Chunk {
 struct TimedChunk {
     Chunk data;
     int staleFrames = 0;
+    std::optional<CaveMeshGenerator::CaveMesh> caveMesh;
 };
 
 class ChunkManager {
@@ -30,6 +33,9 @@ public:
     void setMapLayer(MapLayer layer);
 
     std::vector<Tile> collectRenderTiles(MapLayer layer) const;
+    std::vector<CaveMeshGenerator::CaveMesh> collectCaveMeshes() const;
+
+    const std::unordered_map<RegionKey, TimedChunk >& getActiveChunks() const;
 
 private:
     void unloadFarChunks();

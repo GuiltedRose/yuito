@@ -1,6 +1,6 @@
 #pragma once
+
 #include "math/Vec2.h"
-#include "worldgen/WorldTypes.h"
 
 enum class MapLayer {
     Surface,
@@ -26,3 +26,10 @@ namespace std {
         }
     };
 }
+
+struct CaveTile {
+    float height;  // e.g. for lava, water, or lighting
+    float r, g, b;  // colors for rendering
+    int x, y;
+    bool solid;
+};

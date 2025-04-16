@@ -1,25 +1,20 @@
 #include "render/RenderSystem.h"
 #include "render/ShaderSource.h"
-#include <QOpenGLFunctions>
+#include "render/PrimitiveMeshGenerator.h"
 #include <QOpenGLContext>
 #include <QOpenGLFunctions_4_5_Core>
+#include <QDebug>
 
 void RenderSystem::initGL() {
     if (!QOpenGLContext::currentContext()) {
-        qFatal("No current OpenGL context!");
+        qFatal("No OpenGL context available!");
     }
 
-    if (!initializeOpenGLFunctions()) {
-        qFatal("Failed to initialize OpenGL 4.5 core functions!");
-    }
+    gl = new QOpenGLFunctions_4_5_Core;
+    gl->initializeOpenGLFunctions();
 }
 
-
-
 void RenderSystem::initialize() {
-    gl = new QOpenGLFunctions_4_5_Core;
-    gl->initializeOpenGLFunctions();  // This sets up OpenGL function pointers.
-
     loadBasicShaders();
     generatePrimitives();
 }
@@ -29,13 +24,20 @@ void RenderSystem::loadBasicShaders() {
     huskShader->addShaderFromSourceCode(QOpenGLShader::Vertex, ShaderSource::huskVertex);
     huskShader->addShaderFromSourceCode(QOpenGLShader::Fragment, ShaderSource::huskFragment);
     huskShader->link();
-
     shaders["husk"] = std::move(huskShader);
 }
 
 QOpenGLShaderProgram* RenderSystem::getShader(const std::string& name) {
     auto it = shaders.find(name);
     return (it != shaders.end()) ? it->second.get() : nullptr;
+}
+
+void RenderSystem::drawPrimitive(PrimitiveShape shape) {
+    switch (shape) {
+        case PrimitiveShape::RoundedCube: cubeMesh.draw(gl); break;
+        case PrimitiveShape::Capsule:     capsuleMesh.draw(gl); break;
+        case PrimitiveShape::Sphere:      sphereMesh.draw(gl); break;
+    }
 }
 
 void RenderSystem::drawMesh(const Mesh& mesh) {
@@ -55,30 +57,55 @@ void RenderSystem::cleanupMesh(Mesh& mesh) {
     gl->glDeleteVertexArrays(1, &mesh.vao);
 }
 
-void RenderSystem::drawPrimitive(PrimitiveShape shape) {
-    switch (shape) {
-        case PrimitiveShape::RoundedCube: cubeMesh.draw(static_cast<QOpenGLFunctions_4_5_Core*>(this)); break;
-        case PrimitiveShape::Capsule:     capsuleMesh.draw(static_cast<QOpenGLFunctions_4_5_Core*>(this)); break;
-        case PrimitiveShape::Sphere:      sphereMesh.draw(static_cast<QOpenGLFunctions_4_5_Core*>(this)); break;
+void RenderSystem::uploadCaveMesh(const CaveMeshGenerator::CaveMesh& mesh) {
+    caveVertices = mesh.vertices;
+    caveIndices = mesh.indices;
+
+    if (caveVAO == 0) {
+        gl->glGenVertexArrays(1, &caveVAO);
+        gl->glGenBuffers(1, &caveVBO);
+        gl->glGenBuffers(1, &caveEBO);
     }
+
+    gl->glBindVertexArray(caveVAO);
+
+    gl->glBindBuffer(GL_ARRAY_BUFFER, caveVBO);
+    gl->glBufferData(GL_ARRAY_BUFFER, caveVertices.size() * sizeof(Vertex), caveVertices.data(), GL_STATIC_DRAW);
+
+    gl->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, caveEBO);
+    gl->glBufferData(GL_ELEMENT_ARRAY_BUFFER, caveIndices.size() * sizeof(unsigned int), caveIndices.data(), GL_STATIC_DRAW);
+
+    gl->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
+    gl->glEnableVertexAttribArray(0);
+    gl->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
+    gl->glEnableVertexAttribArray(1);
+
+    gl->glBindVertexArray(0);
+}
+
+void RenderSystem::drawCaveMesh() {
+    if (caveVAO == 0) return;
+    gl->glBindVertexArray(caveVAO);
+    gl->glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(caveIndices.size()), GL_UNSIGNED_INT, 0);
+    gl->glBindVertexArray(0);
 }
 
 void RenderSystem::generatePrimitives() {
     // === Rounded Cube ===
     std::vector<float> cubeVerts = {
-        // (same cubeVerts data as before)
-        -0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f,  0.5f,  0.5f, -0.5f,
-        -0.5f, -0.5f, -0.5f,  0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f,
-        -0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f,
-        -0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f,
-        -0.5f, -0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f,  0.5f,  0.5f,
-        -0.5f, -0.5f, -0.5f, -0.5f,  0.5f,  0.5f, -0.5f, -0.5f,  0.5f,
-         0.5f, -0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f,  0.5f,
-         0.5f, -0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f, -0.5f,  0.5f,
-        -0.5f, -0.5f, -0.5f, -0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,
-        -0.5f, -0.5f, -0.5f,  0.5f, -0.5f,  0.5f,  0.5f, -0.5f, -0.5f,
-        -0.5f,  0.5f, -0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f,  0.5f,
-        -0.5f,  0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f,  0.5f, -0.5f,
+        // (same cube vertex data, no normals/colors)
+        -0.5f,-0.5f,-0.5f,  0.5f,-0.5f,-0.5f,  0.5f, 0.5f,-0.5f,
+        -0.5f,-0.5f,-0.5f,  0.5f, 0.5f,-0.5f, -0.5f, 0.5f,-0.5f,
+        -0.5f,-0.5f, 0.5f,  0.5f,-0.5f, 0.5f,  0.5f, 0.5f, 0.5f,
+        -0.5f,-0.5f, 0.5f,  0.5f, 0.5f, 0.5f, -0.5f, 0.5f, 0.5f,
+        -0.5f,-0.5f,-0.5f, -0.5f, 0.5f,-0.5f, -0.5f, 0.5f, 0.5f,
+        -0.5f,-0.5f,-0.5f, -0.5f, 0.5f, 0.5f, -0.5f,-0.5f, 0.5f,
+         0.5f,-0.5f,-0.5f,  0.5f, 0.5f,-0.5f,  0.5f, 0.5f, 0.5f,
+         0.5f,-0.5f,-0.5f,  0.5f, 0.5f, 0.5f,  0.5f,-0.5f, 0.5f,
+        -0.5f,-0.5f,-0.5f, -0.5f,-0.5f, 0.5f,  0.5f,-0.5f, 0.5f,
+        -0.5f,-0.5f,-0.5f,  0.5f,-0.5f, 0.5f,  0.5f,-0.5f,-0.5f,
+        -0.5f, 0.5f,-0.5f, -0.5f, 0.5f, 0.5f,  0.5f, 0.5f, 0.5f,
+        -0.5f, 0.5f,-0.5f,  0.5f, 0.5f, 0.5f,  0.5f, 0.5f,-0.5f
     };
 
     gl->glGenVertexArrays(1, &cubeMesh.vao);

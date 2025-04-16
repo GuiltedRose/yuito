@@ -1,6 +1,8 @@
 #include "worldgen/World.h"
 #include "worldgen/ChunkManager.h"
+#include "worldgen/CaveGenerator.h"
 #include <random>
+#include <iostream>
 
 World::World()
     : generator_(std::random_device{}()),
@@ -26,6 +28,24 @@ void World::prepareRender(MapLayer layer) {
     renderTiles_.clear();
     auto tiles = chunkManager_.collectRenderTiles(layer);
     renderTiles_.insert(renderTiles_.end(), tiles.begin(), tiles.end());
+
+    std::cout << "[Render] Preparing tiles for layer: "
+              << (layer == MapLayer::Surface ? "Surface" : "Underground")
+              << " - got " << tiles.size() << " tiles.\n";
+
+    if (layer == MapLayer::Underground && !caveNetworks.empty()) {
+        std::cout << "[Render] Caves detected: " << caveNetworks.size() << "\n";
+        for (auto& [id, cave] : caveNetworks) {
+            std::cout << "[Render] Cave mesh uploading: " << id << " - size: " << cave.caveGrid.size() << "\n";
+            auto mesh = CaveMeshGenerator::generateCaveMesh(cave.caveGrid, 1.0f);
+            renderSystem->uploadCaveMesh(mesh);
+            break;
+        }
+    }
+}
+
+void World::setRenderSystem(RenderSystem* render) {
+    renderSystem = render;
 }
 
 const std::vector<Tile>& World::getRenderTiles(MapLayer layer) const {

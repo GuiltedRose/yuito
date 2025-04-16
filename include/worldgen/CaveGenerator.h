@@ -7,13 +7,8 @@
 #include "worldgen/Noise.h"
 #include "worldgen/WorldTypes.h"
 #include "worldgen/Location.h"
-
-struct CaveTile {
-    float height;  // e.g. for lava, water, or lighting
-    float r, g, b;  // colors for rendering
-    int x, y;
-    bool solid;
-};
+#include "worldgen/WorldTypes.h"
+#include "render/CaveMeshGenerator.h"
 
 struct CaveNetwork {
     std::string id;
@@ -24,12 +19,26 @@ struct CaveNetwork {
     std::vector<Math::Vec2i> connectedRegions;
     std::vector<std::string> connectedEntrances;
     std::vector<std::vector<CaveTile>> caveGrid;
+
+    CaveMeshGenerator::CaveMesh mesh; 
 };
 
 namespace CaveGenerator {
+    inline static std::unordered_map<RegionKey, std::vector<std::vector<CaveTile>>, std::hash<RegionKey>> tempCache;
+    
     int rollCaveNetworkSize(const std::string& id);
     std::vector<Math::Vec2i> generateCaveLayout(const Math::Vec2i& start, int size, size_t seed);
-    std::vector<std::vector<CaveTile>> generateCaveGrid(const Math::Vec2i& regionCoords, unsigned int seed, int width, int height);
+
+    std::vector<std::vector<CaveTile>> generateCaveGrid(
+        const Math::Vec2i& regionCoords,
+        unsigned int seed,
+        int width,
+        int height,
+        const std::vector<Math::Vec2i>& layout
+    );
+
+    CaveMeshGenerator::CaveMesh getCachedMeshForRegion(const RegionKey& key);
+
     std::vector<Location> generateUndergroundRegionWithSeed(const RegionKey& key, unsigned int seed);
 }
 

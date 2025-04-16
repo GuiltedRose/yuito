@@ -1,28 +1,47 @@
 #include "worldgen/ChunkManager.h"
 #include <algorithm>
+#include <iostream>
 
 ChunkManager::ChunkManager(WorldGenerator& generator, unsigned int seed)
-    : generator(generator), seed(seed), playerRegion({{0, 0}, MapLayer::Surface}) {
-
-    workerThread = std::thread([this, &generator, seed]() {
+    : generator(generator), seed(seed), playerRegion({{0, 0}, MapLayer::Surface}) 
+{
+    workerThread = std::thread([this, &generator, &seed]() {
         while (running) {
             RegionKey key;
 
             {
                 std::unique_lock<std::mutex> lock(chunkMutex);
-                chunkCV.wait(lock, [this]() { return !chunkLoadQueue.empty() || !running; });
+                chunkCV.wait(lock, [this]() {
+                    return !chunkLoadQueue.empty() || !running;
+                });
                 if (!running) break;
 
                 key = chunkLoadQueue.front();
                 chunkLoadQueue.pop();
             }
 
-            auto locations = generator.generateRegionWithSeed(key.coords, seed);
-            generator.linkAdjacentRegions(key);
+            const Math::Vec2i& coords = key.coords;
+            MapLayer layer = key.layer;
+
+            std::vector<Location> locations;
+            std::optional<CaveMeshGenerator::CaveMesh> caveMesh = std::nullopt;
+
+            if (layer == MapLayer::Underground) {
+                // Step 1: generate cave tiles (locations only)
+                locations = generator.generateUndergroundRegionWithSeed(key, seed);
+                // Step 2: generate cave mesh using cached layout/grid
+                caveMesh = CaveGenerator::getCachedMeshForRegion(key);
+            } else {
+                locations = generator.generateRegionWithSeed(coords, seed);
+            }
 
             {
                 std::lock_guard<std::mutex> lock(chunkMutex);
-                activeChunks[key] = TimedChunk{ Chunk{ key.coords, locations }, 0 };
+                activeChunks[key] = TimedChunk{
+                    Chunk{ coords, locations },
+                    0,
+                    caveMesh
+                };
                 enqueuedRegions.erase(key);
             }
         }
@@ -42,9 +61,20 @@ ChunkManager::~ChunkManager() {
 void ChunkManager::setMapLayer(MapLayer layer) {
     std::lock_guard<std::mutex> lock(chunkMutex);
     currentLayer = layer;
+
+    // Optional: remove all non-matching layer chunks
+    for (auto it = activeChunks.begin(); it != activeChunks.end(); ) {
+        if (it->first.layer != currentLayer) {
+            it = activeChunks.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 Chunk* ChunkManager::getChunk(const Math::Vec2i& coords, MapLayer layer) {
+    if (layer != currentLayer) return nullptr;  // Skip chunks from other layers
+
     RegionKey key{ coords, layer };
     std::lock_guard<std::mutex> lock(chunkMutex);
 
@@ -53,7 +83,13 @@ Chunk* ChunkManager::getChunk(const Math::Vec2i& coords, MapLayer layer) {
         return &it->second.data;
     }
 
-    auto locations = generator.generateRegionWithSeed(coords, seed);
+    std::vector<Location> locations;
+    if (layer == MapLayer::Underground) {
+        locations = generator.generateUndergroundRegionWithSeed(key, seed);
+    } else {
+        locations = generator.generateRegionWithSeed(coords, seed);
+    }
+
     activeChunks[key] = TimedChunk{ Chunk{ coords, locations }, 0 };
     return &activeChunks[key].data;
 }
@@ -67,8 +103,8 @@ bool ChunkManager::isWithinRadius(const Math::Vec2i& a, const Math::Vec2i& b, in
 void ChunkManager::updatePlayerRegion(const RegionKey& key) {
     playerRegion = key;
 
-    for (int dy = -chunkRadius - 1; dy <= chunkRadius + 1; ++dy) {
-        for (int dx = -chunkRadius - 1; dx <= chunkRadius + 1; ++dx) {
+    for (int dy = -chunkRadius; dy <= chunkRadius; ++dy) {
+        for (int dx = -chunkRadius; dx <= chunkRadius; ++dx) {
             Math::Vec2i coords = { key.coords.x + dx, key.coords.y + dy };
             RegionKey rkey = { coords, key.layer };
 
@@ -107,7 +143,7 @@ std::vector<Tile> ChunkManager::collectRenderTiles(MapLayer layer) const {
     std::lock_guard<std::mutex> lock(chunkMutex);
 
     for (const auto& [key, timedChunk] : activeChunks) {
-        if (key.layer != currentLayer) continue;
+        if (key.layer != layer) continue;
 
         const Chunk& chunk = timedChunk.data;
 
@@ -126,4 +162,24 @@ std::vector<Tile> ChunkManager::collectRenderTiles(MapLayer layer) const {
     }
 
     return tiles;
+}
+
+std::vector<CaveMeshGenerator::CaveMesh> ChunkManager::collectCaveMeshes() const {
+    std::vector<CaveMeshGenerator::CaveMesh> result;
+    std::lock_guard<std::mutex> lock(chunkMutex);
+
+    for (const auto& [key, timedChunk] : activeChunks) {
+        if (key.layer != MapLayer::Underground) continue;
+
+        if (timedChunk.caveMesh.has_value() && !timedChunk.caveMesh->vertices.empty()) {
+            result.push_back(*timedChunk.caveMesh);
+        }
+    }
+
+    return result;
+}
+
+const std::unordered_map<RegionKey, TimedChunk>& ChunkManager::getActiveChunks() const {
+    std::lock_guard<std::mutex> lock(chunkMutex);
+    return activeChunks;
 }
